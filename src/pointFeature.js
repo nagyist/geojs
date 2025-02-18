@@ -76,7 +76,6 @@ var pointFeature = function (arg) {
   arg = arg || {};
   feature.call(this, arg);
 
-  var $ = require('jquery');
   var timestamp = require('./timestamp');
   var ClusterGroup = require('./util/clustering');
   var geo_event = require('./event');
@@ -150,7 +149,7 @@ var pointFeature = function (arg) {
         radiusInGcsAtZoom = Math.pow(Math.pow(offset.y - center.y, 2) + Math.pow(offset.x - center.x, 2), 0.5),
         zoom = map.zoom(),
         radiusInGcsAtZoom0 = radiusInGcsAtZoom * Math.pow(2, zoom);
-    opts = $.extend({}, opts, {radius: radiusInGcsAtZoom0});
+    opts = Object.assign({}, opts, {radius: radiusInGcsAtZoom0});
     m_clusterTree = new ClusterGroup(opts);
 
     m_allData.forEach(function (d, i) {
@@ -330,7 +329,7 @@ var pointFeature = function (arg) {
     // Find points inside the bounding box
     idx = m_rangeTree.range(min.x, min.y, max.x, max.y);
 
-    idx.sort((a, b) => a - b);
+    idx = Uint32Array.from(idx).sort();
     // Filter by circular region
     idx.forEach(function (i) {
       var d = data[i],
@@ -435,7 +434,7 @@ var pointFeature = function (arg) {
     // Find points inside the bounding box.  Only these could be in the polygon
     idx = m_rangeTree.range(min.x, min.y, max.x, max.y);
     // sort by index
-    idx.sort((a, b) => a - b);
+    idx = Uint32Array.from(idx).sort();
     // filter points within the polygon
     idx.forEach(function (i) {
       var d = data[i],
@@ -497,8 +496,7 @@ var pointFeature = function (arg) {
     arg = arg || {};
     s_init.call(m_this, arg);
 
-    var defaultStyle = $.extend(
-      true,
+    var defaultStyle = util.deepMerge(
       {},
       {
         radius: 5.0,

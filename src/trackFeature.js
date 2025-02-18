@@ -66,7 +66,6 @@ var trackFeature = function (arg) {
     return new trackFeature(arg);
   }
 
-  var $ = require('jquery');
   var transform = require('./transform');
 
   arg = arg || {};
@@ -217,6 +216,8 @@ var trackFeature = function (arg) {
           highidx = testidx;
         }
       }
+      // todo: if we want non-linear travel between points, we would adjust
+      // fl and fh here
       var fh = (time - lowt) / (hight - lowt), fl = 1 - fh;
       return {posidx0: lowidx, posidx1: highidx, factor0: fl, factor1: fh, angidx0: lowidx, angidx1: highidx};
     });
@@ -480,7 +481,7 @@ var trackFeature = function (arg) {
       m_styles[styleType] = {};
     }
     if (arg2 === undefined) {
-      m_styles[styleType] = $.extend(true, m_styles[styleType], arg1);
+      m_styles[styleType] = util.deepMerge(m_styles[styleType], arg1);
     } else {
       m_styles[styleType][arg1] = arg2;
     }
@@ -810,8 +811,7 @@ var trackFeature = function (arg) {
     arg = arg || {};
     s_init.call(m_this, arg);
 
-    var style = $.extend(
-      true,
+    var style = util.deepMerge(
       {},
       {
         track: util.identityFunction,
@@ -822,8 +822,7 @@ var trackFeature = function (arg) {
       },
       arg.style === undefined ? {} : arg.style
     );
-    var markerStyle = $.extend(
-      true,
+    var markerStyle = util.deepMerge(
       {},
       {
         rotateWithMap: true,
@@ -831,8 +830,7 @@ var trackFeature = function (arg) {
       },
       arg.markerStyle === undefined ? {} : arg.markerStyle
     );
-    var textStyle = $.extend(
-      true,
+    var textStyle = util.deepMerge(
       {},
       {
         rotateWithMap: true,
@@ -840,24 +838,21 @@ var trackFeature = function (arg) {
       },
       arg.textStyle === undefined ? {} : arg.textStyle
     );
-    var pastStyle = $.extend(
-      true,
+    var pastStyle = util.deepMerge(
       {},
       {
         strokeOpacity: 0.25
       },
       arg.pastStyle === undefined ? {} : arg.pastStyle
     );
-    var currentStyle = $.extend(
-      true,
+    var currentStyle = util.deepMerge(
       {},
       {
         // defaults go here
       },
       arg.currentStyle === undefined ? {} : arg.currentStyle
     );
-    var futureStyle = $.extend(
-      true,
+    var futureStyle = util.deepMerge(
       {},
       {
         strokeOpacity: 0.25

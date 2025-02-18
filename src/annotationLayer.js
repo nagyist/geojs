@@ -96,6 +96,7 @@ var annotationLayer = function (arg) {
       m_options,
       m_mode = null,
       m_annotations = [],
+      m_annotationIds = {},
       m_features = [],
       m_labelFeature,
       m_labelLayer,
@@ -139,7 +140,7 @@ var annotationLayer = function (arg) {
     };
   });
 
-  m_options = $.extend(true, {}, {
+  m_options = util.deepMerge({}, {
     dblClickTime: 300,
     adjacentPointProximity: 5,  // in pixels, 0 is exact
     // in pixels; set to continuousPointProximity to false to disable
@@ -444,7 +445,7 @@ var annotationLayer = function (arg) {
       return m_options[arg1];
     }
     if (arg2 === undefined) {
-      m_options = $.extend(true, m_options, arg1);
+      m_options = util.deepMerge(m_options, arg1);
     } else {
       m_options[arg1] = arg2;
     }
@@ -490,20 +491,24 @@ var annotationLayer = function (arg) {
    *    gcs, `null` to use the map gcs, or any other transform.
    * @param {boolean} [update] If `false`, don't update the layer after adding
    *    the annotation.
+   * @param {boolean} [trigger] If `false`, do not trigger add_before and add
+   *    events.
    * @returns {this} The current layer.
    * @fires geo.event.annotation.add_before
    * @fires geo.event.annotation.add
    */
-  this.addAnnotation = function (annotation, gcs, update) {
-    var pos = $.inArray(annotation, m_annotations);
-    if (pos < 0) {
+  this.addAnnotation = function (annotation, gcs, update, trigger) {
+    if (m_annotationIds[annotation.id()] === undefined) {
       while (m_this.annotationById(annotation.id())) {
         annotation.newId();
       }
-      m_this.geoTrigger(geo_event.annotation.add_before, {
-        annotation: annotation
-      });
+      if (trigger !== false) {
+        m_this.geoTrigger(geo_event.annotation.add_before, {
+          annotation: annotation
+        });
+      }
       m_annotations.push(annotation);
+      m_annotationIds[annotation.id()] = annotation;
       annotation.layer(m_this);
       var map = m_this.map();
       gcs = (gcs === null ? map.gcs() : (
@@ -515,8 +520,43 @@ var annotationLayer = function (arg) {
         m_this.modified();
         m_this.draw();
       }
+      if (trigger !== false) {
+        m_this.geoTrigger(geo_event.annotation.add, {
+          annotation: annotation
+        });
+      }
+    }
+    return m_this;
+  };
+
+  /**
+   * Add multiple annotations to the layer.  The annotations could be in any
+   * state.
+   *
+   * @param {geo.annotation[]} annotations The annotations to add.
+   * @param {string|geo.transform|null} [gcs] `undefined` to use the interface
+   *    gcs, `null` to use the map gcs, or any other transform.
+   * @param {boolean} [update] If `false`, don't update the layer after adding
+   *    the annotation.
+   * @returns {this} The current layer.
+   * @fires geo.event.annotation.add_before
+   * @fires geo.event.annotation.add
+   */
+  this.addMultipleAnnotations = function (annotations, gcs, update) {
+    const added = [];
+    m_this.geoTrigger(geo_event.annotation.add_before, {
+      annotations: annotations
+    });
+    for (let i = 0; i < annotations.length; i += 1) {
+      const annotation = annotations[i];
+      if (m_annotationIds[annotation.id()] === undefined) {
+        this.addAnnotation(annotation, gcs, update, false);
+        added.push(annotation);
+      }
+    }
+    if (added.length) {
       m_this.geoTrigger(geo_event.annotation.add, {
-        annotation: annotation
+        annotations: added
       });
     }
     return m_this;
@@ -528,14 +568,20 @@ var annotationLayer = function (arg) {
    * @param {geo.annotation} annotation The annotation to remove.
    * @param {boolean} [update] If `false`, don't update the layer after removing
    *    the annotation.
+   * @param {int} [pos] The posiiton of the annotation in the annotation list,
+   *    if known.  This speeds up the process.
+   * @param {boolean} [trigger] If `false`, do not trigger remove event.
    * @returns {boolean} `true` if an annotation was removed.
    * @fires geo.event.annotation.remove
    */
-  this.removeAnnotation = function (annotation, update) {
-    var pos = $.inArray(annotation, m_annotations);
-    if (pos >= 0) {
+  this.removeAnnotation = function (annotation, update, pos, trigger) {
+    if (annotation.id && m_annotationIds[annotation.id()] !== undefined) {
+      pos = m_annotations.indexOf(annotation);
       if (annotation === m_this.currentAnnotation) {
         m_this.currentAnnotation = null;
+      }
+      if (m_annotationIds[annotation.id()] !== undefined) {
+        delete m_annotationIds[annotation.id()];
       }
       annotation._exit();
       m_annotations.splice(pos, 1);
@@ -543,11 +589,14 @@ var annotationLayer = function (arg) {
         m_this.modified();
         m_this.draw();
       }
-      m_this.geoTrigger(geo_event.annotation.remove, {
-        annotation: annotation
-      });
+      if (trigger !== false) {
+        m_this.geoTrigger(geo_event.annotation.remove, {
+          annotation: annotation
+        });
+      }
+      return true;
     }
-    return pos >= 0;
+    return false;
   };
 
   /**
@@ -557,17 +606,17 @@ var annotationLayer = function (arg) {
    *    are in the create state.
    * @param {boolean} [update] If `false`, don't update the layer after
    *    removing the annotation.
+   * @param {boolean} [trigger] If `false`, do not trigger remove events.
    * @returns {number} The number of annotations that were removed.
    */
-  this.removeAllAnnotations = function (skipCreating, update) {
-    var removed = 0, annotation, pos = 0;
-    while (pos < m_annotations.length) {
+  this.removeAllAnnotations = function (skipCreating, update, trigger) {
+    var removed = 0, annotation;
+    for (let pos = m_annotations.length - 1; pos >= 0; pos -= 1) {
       annotation = m_annotations[pos];
       if (skipCreating && annotation.state() === geo_annotation.state.create) {
-        pos += 1;
         continue;
       }
-      m_this.removeAnnotation(annotation, false);
+      m_this.removeAnnotation(annotation, false, pos, trigger);
       removed += 1;
     }
     if (removed && update !== false) {
@@ -597,12 +646,7 @@ var annotationLayer = function (arg) {
     if (id !== undefined && id !== null) {
       id = +id;  /* Cast to int */
     }
-    var annotations = m_annotations.filter(function (annotation) {
-      return annotation.id() === id;
-    });
-    if (annotations.length) {
-      return annotations[0];
-    }
+    return m_annotationIds[id];
   };
 
   /* A list of special modes */
@@ -696,7 +740,7 @@ var annotationLayer = function (arg) {
       m_this.map().interactor().removeAction(
         undefined, undefined, geo_annotation.actionOwner);
       if (createAnnotation) {
-        options = $.extend({}, options || {}, {
+        options = Object.assign({}, options || {}, {
           state: geo_annotation.state.create,
           layer: m_this
         });
@@ -812,9 +856,9 @@ var annotationLayer = function (arg) {
       gcs === undefined ? map.ingcs() : gcs));
     $.each(dataList, function (data_idx, data) {
       var type = (data.properties || {}).annotationType || feature.featureType,
-          options = $.extend({}, data.properties || {}),
+          options = Object.assign({}, data.properties || {}),
           position, datagcs, i, existing;
-      if ($.inArray(type, annotationList) < 0) {
+      if (!annotationList.includes(type)) {
         return;
       }
       options.style = options.style || {};
@@ -1434,6 +1478,7 @@ var annotationLayer = function (arg) {
     // Call super class exit
     s_exit.call(m_this);
     m_annotations = [];
+    m_annotationIds = {};
     m_features = [];
     return m_this;
   };

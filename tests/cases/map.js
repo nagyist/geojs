@@ -266,6 +266,8 @@ describe('geo.core.map', function () {
         bottom: -128 * units,
         width: 256 * units,
         height: 256 * units})).toBe(true);
+      expect(closeToEqual(m.corners()[0], {x: -180, y: 85.05}));
+      expect(closeToEqual(m.corners(null)[0], {x: -128 * units, y: 128 * units}));
       m.ingcs('EPSG:3857');
       expect(m.ingcs()).toBe('EPSG:3857');
       expect(closeToEqual(m.bounds(), {
@@ -418,6 +420,16 @@ describe('geo.core.map', function () {
       expect(m.autoshareRenderer()).toBe(undefined);
       m = createMap({autoshareRenderer: 'more'});
       expect(m.autoshareRenderer()).toBe('more');
+    });
+    it('zoomAndCenter and center', function () {
+      var m = createMap(undefined, {width: '500px', height: '500px'});
+      expect(m.zoom()).toBe(4);
+      m.zoomAndCenter(3.5, {x: 4, y: 2});
+      expect(m.zoom()).toBe(3.5);
+      expect(closeToEqual(m.center(), {x: 4, y: 2, z: 0})).toBe(true);
+      m.center({x: 0, y: 0});
+      expect(m.zoom()).toBe(3.5);
+      expect(closeToEqual(m.center(), {x: 0, y: 0, z: 0})).toBe(true);
     });
   });
 

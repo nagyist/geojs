@@ -1,5 +1,6 @@
 var inherit = require('./inherit');
 var featureLayer = require('./featureLayer');
+var util = require('./util');
 
 /**
  * Object specification for a tile layer.
@@ -101,6 +102,7 @@ function modulo(a, b) {
 /**
  * Pick a subdomain from a list of subdomains based on a the tile location.
  *
+ * @private
  * @param {number} x The x tile coordinate.
  * @param {number} y The y tile coordinate.
  * @param {number} z The tile layer.
@@ -120,9 +122,9 @@ function m_getTileSubdomain(x, y, z, subdomains) {
  * all equivalent.  The comma-separated list can have subdomains that are of
  * any length; the string and range both use one-character subdomains.
  *
+ * @private
  * @param {string} base The tile format string
  * @returns {function} A conversion function.
- * @private.
  */
 function m_tileUrlFromTemplate(base) {
   var xPattern = /\$?\{[xX]\}/g,
@@ -194,7 +196,7 @@ var tileLayer = function (arg) {
   var adjustLayerForRenderer = require('./registry').adjustLayerForRenderer;
   var Tile = require('./tile');
 
-  arg = $.extend(true, {}, this.constructor.defaults, arg || {});
+  arg = util.deepMerge({}, this.constructor.defaults, arg || {});
   if (!arg.cacheSize) {
     // this size should be sufficient for a 4k display
     // where display size is (w, h), minimum tile dimension is ts, and total
@@ -236,7 +238,7 @@ var tileLayer = function (arg) {
       m_this = this;
 
   // copy the options into a private variable
-  this._options = $.extend(true, {}, arg);
+  this._options = util.deepMerge({}, arg);
 
   // set the layer attribution text
   this.attribution(arg.attribution);
@@ -282,7 +284,7 @@ var tileLayer = function (arg) {
    * @name geo.tileLayer#options
    */
   Object.defineProperty(this, 'options', {get: function () {
-    return $.extend({}, m_this._options);
+    return Object.assign({}, m_this._options);
   }});
 
   /**
@@ -303,7 +305,7 @@ var tileLayer = function (arg) {
    * @name geo.tileLayer#activeTiles
    */
   Object.defineProperty(this, 'activeTiles', {get: function () {
-    return $.extend({}, m_this._activeTiles); // copy on output
+    return Object.assign({}, m_this._activeTiles); // copy on output
   }});
 
   /**
@@ -599,7 +601,7 @@ var tileLayer = function (arg) {
       size: {x: m_this._options.tileWidth, y: m_this._options.tileHeight},
       queue: m_this._queue,
       url: m_this._options.url.call(
-        m_this, urlParams.x, urlParams.y, urlParams.level || 0,
+        m_this, urlParams.x, urlParams.y, Math.max(urlParams.level || 0, 0),
         m_this._options.subdomains)
     });
   };

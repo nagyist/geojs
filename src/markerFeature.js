@@ -33,7 +33,7 @@ var pointFeature = require('./pointFeature');
  * @property {number|function} [strokeOffset=-1] The position of the stroke
  *   compared to the radius.  This can only be -1, 0, or 1 (the sign of the
  *   value is used).
- * @property {boolean|function} [radiusIncludeStroke=true] If truthy or
+ * @property {boolean|function} [radiusIncludesStroke=true] If truthy or
  *   undefined, the `radius` includes the `strokeWidth` based on the
  *   `strokeOffset`.  If defined and falsy, the radius does not include the
  *   `strokeWidth`.
@@ -74,7 +74,6 @@ var markerFeature = function (arg) {
   arg = arg || {};
   pointFeature.call(this, arg);
 
-  var $ = require('jquery');
   var timestamp = require('./timestamp');
   var util = require('./util');
   var KDBush = require('kdbush');
@@ -229,7 +228,7 @@ var markerFeature = function (arg) {
     // Find markers inside the bounding box
     idx = m_rangeTree.range(min.x, min.y, max.x, max.y);
 
-    idx.sort((a, b) => a - b);
+    idx = Uint32Array.from(idx).sort();
     // Filter by circular region
     idx.forEach(function (i) {
       var d = data[i],
@@ -354,16 +353,20 @@ var markerFeature = function (arg) {
     };
     // Find markers inside the bounding box.  Only these could be in the polygon
     idx = m_rangeTree.range(min.x, min.y, max.x, max.y);
-    // sort by index
-    idx.sort((a, b) => a - b);
+    /* sort by index.  This had been
+     *  idx.sort((a, b) => a - b);
+     * but this requires continual casting from int to str and back, so using
+     * a Uint32Array is faster, though potentially limits the maximum number of
+     * markers. */
+    idx = Uint32Array.from(idx).sort();
     // filter markers within the polygon
     idx.forEach(function (i) {
       var d = data[i];
       let p = m_this.position()(d, i);
-      let rad = radius(data[i], i),
-          swz = scaleWithZoom(data[i], i);
-      const so = strokeOffset(data[i], i),
-          s = swz ? strokeWidth(data[i], i) : 0;
+      let rad = radius(d, i),
+          swz = scaleWithZoom(d, i);
+      const so = strokeOffset(d, i),
+          s = swz ? strokeWidth(d, i) : 0;
       let ris = radiusIncludesStroke(d, i);
       ris = ris === undefined ? true : ris;
       const rwos = ris ? rad + s * (so - 1) / 2 : rad;  // radius without stroke
@@ -404,11 +407,10 @@ var markerFeature = function (arg) {
    * @returns {this}
    */
   this._init = function (arg) {
-    arg = $.extend(
-      true,
+    arg = util.deepMerge(
       {},
       {
-        style: $.extend(
+        style: Object.assign(
           {},
           {
             radius: 6.25,
